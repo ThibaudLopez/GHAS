@@ -8,8 +8,10 @@ HOW TO USE:
 - execute the script in the JavaScript console
 
 PENDING:
+- add manual override, e.g. public repos manually verified
+- add cross-reference between Issue and PR
 - last column DONE: await prior code before rendering
-- add comments as hover
+- add comments on hover
 - GitHub API sometimes returns blank object {} instead of actual response, despite no error message and no exceeded rate limit
 	/stats/contributors response is not array
 	result.filter(o => !Array.isArray(o.contributors))
@@ -35,6 +37,17 @@ var repos = ["foo", "bar", "baz"];
 // Personal access token
 // https://github.com/settings/tokens
 var TOKEN = "abc123";
+
+// manual override for weird cases
+var override = {
+	// repository, reason
+	"acme": "public repository, manually verified, 3 GHAS tasks setup, zero alerts"
+};
+
+
+/*
+	constants
+*/
 
 // CodeQL supports, from codeql-analysis.yml
 var codeql_supports = ["cpp", "csharp", "go", "java", "javascript", "python"];
@@ -506,7 +519,8 @@ document.head.innerHTML = `
 		td:nth-child(35), /*Pull Request*/
 		td:nth-child(36), /*Dependabot YAML*/
 		td:nth-child(39), /*Tasks*/
-		td:nth-child(40)  /*DONE*/
+		td:nth-child(40)  /*override*/
+		td:nth-child(41)  /*DONE*/
 		{
 			border-right: 5px solid black;
 		}
@@ -549,6 +563,7 @@ document.body.innerHTML = `
 				<th colspan="8">Pull Request</th>
 				<th rowspan="2">Dependabot YAML</th>
 				<th colspan="3">tasks</th>
+				<th rowspan="2">override</th>
 				<th rowspan="2">DONE</th>
 			</tr>
 			<tr>
@@ -601,6 +616,7 @@ document.body.innerHTML = `
 				<th>code-scanning</th>
 				<th>dependabot</th>
 				<th>secret-scanning</th>
+				<!-- override -->
 				<!-- DONE -->
 			</tr>
 		</thead>
@@ -684,6 +700,8 @@ document.body.innerHTML = `
 						<td class="${has_code_scanning(o) === true ? "green" : (has_code_scanning(o) === false ? "red" : "")}" title="${o.code_scanning.message || o.code_scanning.length}">${has_code_scanning(o) === true ? "✓" : (has_code_scanning(o) === undefined ? o.code_scanning.message : "✘")}</td>
 						<td class="${has_dependabot(o) === true ? "green" : (has_dependabot(o) === false ? "red" : "")}" title="${o.dependabot.data.repository.vulnerabilityAlerts.nodes.length}">${has_dependabot(o) === true ? "✓" : (has_dependabot(o) === undefined ? "?" : "✘")}</td>
 						<td class="${has_secret_scanning(o) === true ? "green" : (has_secret_scanning(o) === false ? "red" : "")}" title="${o.secret_scanning.message || o.secret_scanning.length}">${has_secret_scanning(o) === true ? "✓" : (has_secret_scanning(o) === undefined ? o.secret_scanning.message : "✘")}</td>
+						<!-- override -->
+						<td>${override[o.repo] || ""}</td>
 						<!-- DONE -->
 						<td></td>
 					</tr>
@@ -741,6 +759,8 @@ document.body.innerHTML = `
 				<th>${count_code_scanning_alerts} repos setup with code-scanning</th>
 				<th>${count_dependabot_alerts} repos setup with dependabot</th>
 				<th>${count_secret_scanning_alerts} repos setup with secret_scanning</th>
+				<!-- override -->
+				<th rowspan="2"></th>
 				<!-- DONE -->
 				<th rowspan="2"></th>
 			</tr>
@@ -767,9 +787,10 @@ document.querySelectorAll("table thead tr th").forEach(th => th.addEventListener
 var expected_green = 11; // issue close, pull request closed, GHAS setup, YAML setup, 3 tasks done, etc.
 var rows = [...document.querySelectorAll("table tbody tr")];
 rows.forEach(tr => {
+	var repo = tr.cells[1].innerText;
 	var td = tr.cells[tr.cells.length - 1];
 	var greens = $x(`td[@class='green' and position()!=last()]`, tr);
-	if (greens.length === expected_green) {
+	if (greens.length === expected_green || override[repo]) {
 		td.innerText = "✓";
 		td.className = "green";
 	} else {
