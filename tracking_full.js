@@ -13,8 +13,7 @@ PENDING:
 - swap columns updated_at hours/days
 - add column CMake if CMakeLists.txt
 - GitHub API sometimes returns blank object {} instead of actual response, despite no error message and no exceeded rate limit
-	api-3dtiles/stats/contributors response is not array
-	cdn-global-api/stats/contributors response is not array
+	/stats/contributors response is not array
 	result.filter(o => !Array.isArray(o.contributors))
 - what's the API to get the 160 count of seats ? to un-hardcode value
 - what's the API to get the list of 51 repos that have GHAS setup ? to un-hardcode the repos.js list
@@ -388,23 +387,23 @@ document.body.innerHTML = "";
 // get all the data, loop repos
 var timestamp = new Date().toISOString();
 var promises = repos.map(async (repo) => ({
-		repo: repo,
-		repository: await get_repository(owner, repo),
-		teams: await get_teams(owner, repo),
-		languages: await get_languages(owner, repo),
-		allowed_actions: await get_allowed_actions(owner, repo),
-		actions_workflows: await get_actions_workflows(owner, repo),
-		travis_yml: await get_travis_yml(owner, repo),
-		circleci_yml: await get_circleci_yml(owner, repo),
-		aws_codebuild_yml: await get_aws_codebuild_yml(owner, repo),
-		makefile: await get_makefile(owner, repo),
-		contributors: await get_contributors(owner, repo),
-		codeql_analysis_yml: await get_codeql_analysis_yml(owner, repo),
-		dependabot_yml: await get_dependabot_yml(owner, repo),
-		code_scanning: await get_code_scanning_alerts(owner, repo),
-		dependabot: await get_dependabot_alerts(owner, repo),
-		secret_scanning: await get_secret_scanning_alerts(owner, repo),
-		vulnerability_alerts: await get_vulnerability_alerts(owner, repo),
+	repo: repo,
+	repository: await get_repository(owner, repo),
+	teams: await get_teams(owner, repo),
+	languages: await get_languages(owner, repo),
+	allowed_actions: await get_allowed_actions(owner, repo),
+	actions_workflows: await get_actions_workflows(owner, repo),
+	travis_yml: await get_travis_yml(owner, repo),
+	circleci_yml: await get_circleci_yml(owner, repo),
+	aws_codebuild_yml: await get_aws_codebuild_yml(owner, repo),
+	makefile: await get_makefile(owner, repo),
+	contributors: await get_contributors(owner, repo),
+	codeql_analysis_yml: await get_codeql_analysis_yml(owner, repo),
+	dependabot_yml: await get_dependabot_yml(owner, repo),
+	code_scanning: await get_code_scanning_alerts(owner, repo),
+	dependabot: await get_dependabot_alerts(owner, repo),
+	secret_scanning: await get_secret_scanning_alerts(owner, repo),
+	vulnerability_alerts: await get_vulnerability_alerts(owner, repo),
 }));
 var result = await Promise.all(promises);
 var issues = await get_GHAS_issues(owner);
