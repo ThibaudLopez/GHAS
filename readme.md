@@ -4,4 +4,8 @@ Custom dashboard used to track implementation in my organization with many teams
 
 Tested on 50 repos, 350 users.
 
-![screenshot](screenshot.png)
+simple:
+![screenshot](screenshot_simple.png)
+
+full:
+![screenshot](screenshot_full.png)
