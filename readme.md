@@ -1,4 +1,4 @@
-GitHub Advanced Security (GHAS)
+# GitHub Advanced Security (GHAS) dashboard
 
 Custom dashboard used to track implementation in my organization with many teams and repos.
 
