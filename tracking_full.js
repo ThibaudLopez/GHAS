@@ -10,13 +10,11 @@ HOW TO USE:
 PENDING:
 - last column DONE: await prior code before rendering
 - add comments as hover
-- swap columns updated_at hours/days
-- add column CMake if CMakeLists.txt
 - GitHub API sometimes returns blank object {} instead of actual response, despite no error message and no exceeded rate limit
 	/stats/contributors response is not array
 	result.filter(o => !Array.isArray(o.contributors))
-- what's the API to get the 160 count of seats ? to un-hardcode value
-- what's the API to get the list of 51 repos that have GHAS setup ? to un-hardcode the repos.js list
+- what's the API to get the 160 count of seats ? un-hardcode value
+- what's the API to get the list of 51 repos that have GHAS setup ? un-hardcode the repos.js list
 - what other build systems?
 - repo has branch protection? yes/no
 - repo has break builds? yes/no
@@ -218,6 +216,11 @@ async function get_dependabot_yml(owner, repo) {
 	return await get_content(owner, repo, ".github/dependabot.yml");
 }
 
+// get the CMake file
+async function get_cmakelists(owner, repo) {
+	return await get_content(owner, repo, "CMakeLists.txt");
+}
+
 
 /*
 	other
@@ -259,6 +262,11 @@ function has_codebuild(o) {
 // returns true if repo has a Makefile
 function has_makefile(o) {
 	return (o.makefile?.message !== "Not Found");
+}
+
+// returns true if repo has a CMakeLists
+function has_cmakelists(o) {
+	return (o.cmakelists?.message !== "Not Found");
 }
 
 // returns true if code scanning is setup for this repository
@@ -397,6 +405,7 @@ var promises = repos.map(async (repo) => ({
 	circleci_yml: await get_circleci_yml(owner, repo),
 	aws_codebuild_yml: await get_aws_codebuild_yml(owner, repo),
 	makefile: await get_makefile(owner, repo),
+	cmakelists: await get_cmakelists(owner, repo),
 	contributors: await get_contributors(owner, repo),
 	codeql_analysis_yml: await get_codeql_analysis_yml(owner, repo),
 	dependabot_yml: await get_dependabot_yml(owner, repo),
@@ -426,6 +435,7 @@ var count_travis = result.filter(o => has_travis(o)).length;
 var count_circleci = result.filter(o => has_circleci(o)).length;
 var count_codebuild = result.filter(o => has_codebuild(o)).length;
 var count_makefile = result.filter(o => has_makefile(o)).length;
+var count_cmakelists = result.filter(o => has_cmakelists(o)).length;
 
 // GHAS stats
 var count_code_scanning_alerts = (result.filter(o => has_code_scanning(o) === true).length);
@@ -489,16 +499,16 @@ document.head.innerHTML = `
 		/* hack for colgroup */
 		td:nth-child(1),  /*[i]*/
 		td:nth-child(7),  /*repository*/
-		td:nth-child(11), /*build*/
-		td:nth-child(18), /*issue*/
-		td:nth-child(21), /*GHAS*/
-		td:nth-child(22), /*GitHub Actions*/
-		td:nth-child(23), /*CodeQL workflow*/
-		td:nth-child(26), /*CodeQL YAML*/
-		td:nth-child(34), /*Pull Request*/
-		td:nth-child(35), /*Dependabot YAML*/
-		td:nth-child(38), /*Tasks*/
-		td:nth-child(39)  /*DONE*/
+		td:nth-child(12), /*build*/
+		td:nth-child(19), /*issue*/
+		td:nth-child(22), /*GHAS*/
+		td:nth-child(23), /*GitHub Actions*/
+		td:nth-child(24), /*CodeQL workflow*/
+		td:nth-child(27), /*CodeQL YAML*/
+		td:nth-child(35), /*Pull Request*/
+		td:nth-child(36), /*Dependabot YAML*/
+		td:nth-child(39), /*Tasks*/
+		td:nth-child(40)  /*DONE*/
 		{
 			border-right: 5px solid black;
 		}
@@ -532,7 +542,7 @@ document.body.innerHTML = `
 			<tr>
 				<th></th>
 				<th colspan="6">repository</th>
-				<th colspan="4">build</th>
+				<th colspan="5">build</th>
 				<th colspan="7">issue</th>
 				<th colspan="3">GHAS</th>
 				<th>GitHub Actions</th>
@@ -558,14 +568,15 @@ document.body.innerHTML = `
 				<th>Circle CI</th>
 				<th>AWS CodeBuild</th>
 				<th>Makefile</th>
+				<th>CMakeLists</th>
 				<!-- issue -->
 				<th>#</th>
 				<th>state</th>
 				<th>assignees</th>
 				<th>comments</th>
 				<th>updated_at</th>
-				<th>updated hours ago</th>
 				<th>updated days ago</th>
+				<th>updated hours ago</th>
 				<!-- GHAS -->
 				<th>advanced_security</th>
 				<th>secret_scanning</th>
@@ -585,8 +596,8 @@ document.body.innerHTML = `
 				<th>assignees</th>
 				<th>comments</th>
 				<th>updated_at</th>
-				<th>updated hours ago</th>
 				<th>updated days ago</th>
+				<th>updated hours ago</th>
 				<!-- Dependabot YAML -->
 				<!-- tasks -->
 				<th>code-scanning</th>
@@ -639,14 +650,15 @@ document.body.innerHTML = `
 						<td>${has_circleci(o) ? "✓" : ""}</td>
 						<td>${has_codebuild(o) ? "✓" : ""}</td>
 						<td>${has_makefile(o) ? "✓" : ""}</td>
+						<td>${has_cmakelists(o) ? "✓" : ""}</td>
 						<!-- issue -->
 						<td>${issue ? `<a href="https://github.com/${owner}/${o.repo}/issues/${issue.number}">#${issue.number}</a>` : ""}</td>
 						<td class="${issue && issue.state === "closed" ? "green" : "red"}">${issue?.state || ""}</td>
 						<td>${issue?.assignees.map(assignee => `<a href="https://github.com/${assignee.login}">${assignee.login}</a>`).join(", ") || ""}</td>
 						<td>${issue?.comments || ""}</td>
 						<td>${issue ? issue.updated_at : ""}</td>
-						<td>${issue ? Math.round(issue_updated_ago / 1000 / 3600) : ""}</td>
 						<td>${issue ? Math.round(issue_updated_ago / 1000 / 3600 / 24) : ""}</td>
+						<td>${issue ? Math.round(issue_updated_ago / 1000 / 3600) : ""}</td>
 						<!-- GHAS -->
 						<td class="${o.repository.security_and_analysis?.advanced_security.status === "enabled" ? "green" : ""}">${o.repository.security_and_analysis?.advanced_security.status === "enabled" ? "✓" : "?"}</td>
 						<td class="${o.repository.security_and_analysis?.secret_scanning.status === "enabled" ? "green" : ""}">${o.repository.security_and_analysis?.secret_scanning.status === "enabled" ? "✓" : "?"}</td>
@@ -666,8 +678,8 @@ document.body.innerHTML = `
 						<td>${pull_request?.assignees.map(assignee => `<a href="https://github.com/${assignee.login}">${assignee.login}</a>`).join(", ") || ""}</td>
 						<td>${pull_request?.comments || ""}</td>
 						<td>${pull_request?.updated_at || ""}</td>
-						<td>${pull_request ? Math.round(pull_request_updated_ago / 1000 / 3600) : ""}</td>
 						<td>${pull_request ? Math.round(pull_request_updated_ago / 1000 / 3600 / 24) : ""}</td>
+						<td>${pull_request ? Math.round(pull_request_updated_ago / 1000 / 3600) : ""}</td>
 						<!-- Dependabot YAML -->
 						<td>${o.dependabot_yml.name || o.dependabot_yml.message}</td>
 						<!-- tasks -->
@@ -695,6 +707,7 @@ document.body.innerHTML = `
 				<th rowspan="2">${count_circleci} Circle CI</th>
 				<th rowspan="2">${count_codebuild} AWS CodeBuild</th>
 				<th rowspan="2">${count_makefile} Makefiles</th>
+				<th rowspan="2">${count_cmakelists} CMakeLists</th>
 				<!-- issue -->
 				<th rowspan="2">${result.filter(o => issues.items.find(p => p.repository_url.endsWith(o.repo))).length} issues</th>
 				<th rowspan="2">${[...new Set(issues_.map(issue => issue.state))].map(state => [issues_.filter(issue => issue.state === state).length, state].join(" ")).join("<br/>")}</th>
