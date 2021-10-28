@@ -16,9 +16,7 @@ var TOKEN = "...";
 
 // sugar for GraphQL API
 async function GraphQL(query) {
-	var escaped = query.replaceAll('"', '\\"').replaceAll("\n", " ").replaceAll("\t", " ");
-	var body = `{ "query": "${escaped}" }`;
-	return (await (await fetch("/graphql", { method: "POST", headers: { Authorization: `bearer ${TOKEN}` }, body: body })).json());
+	return (await (await fetch("/graphql", { method: "POST", headers: { Authorization: `bearer ${TOKEN}` }, body: JSON.stringify({ query: query }) })).json());
 }
 
 // sugar for REST API

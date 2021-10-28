@@ -64,9 +64,7 @@ async function fetch_(method, url, body) {
 
 // sugar for GraphQL API
 async function GraphQL(query) {
-	var escaped = query.replaceAll('"', '\\"').replaceAll("\n", " ").replaceAll("\t", " ");
-	var body = `{ "query": "${escaped}" }`;
-	return await fetch_("POST", "/graphql", body);
+	return await fetch_("POST", "/graphql", JSON.stringify({ query: query }));
 }
 
 // sugar for REST API
