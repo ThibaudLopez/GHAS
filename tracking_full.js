@@ -8,8 +8,7 @@ HOW TO USE:
 - execute the script in the JavaScript console
 
 PENDING:
-- add manual override, e.g. public repos manually verified
-- add cross-reference between Issue and PR
+- ensure cross-reference between Issue and PR
 - last column DONE: await prior code before rendering
 - add comments on hover
 - GitHub API sometimes returns blank object {} instead of actual response, despite no error message and no exceeded rate limit
@@ -476,7 +475,7 @@ function sort(event) {
 	// detect the sort direction
 	var ascending = (th.innerText.endsWith(ASC) ? true : false);
 	// replace the sort icon
-	[...tr.cells].forEach(th => th.innerText = th.innerText.replace(/[▲▼]*$/g, ""))
+	[...thead.querySelectorAll("tr th")].forEach(th => th.innerText = th.innerText.replace(/[▲▼]*$/g, ""))
 	th.innerText += (ascending ? DESC : ASC);
 	// sort in the opposite direction
 	[...tbody.rows].sort((a, b) => {
@@ -552,6 +551,7 @@ document.body.innerHTML = `
 	<table>
 		<thead>
 			<tr>
+				<!-- no rowspan or it breaks the sort -->
 				<th></th>
 				<th colspan="6">repository</th>
 				<th colspan="5">build</th>
@@ -561,10 +561,10 @@ document.body.innerHTML = `
 				<th>CodeQL workflow</th>
 				<th colspan="3">CodeQL YAML</th>
 				<th colspan="8">Pull Request</th>
-				<th rowspan="2">Dependabot YAML</th>
+				<th>Dependabot YAML</th>
 				<th colspan="3">tasks</th>
-				<th rowspan="2">override</th>
-				<th rowspan="2">DONE</th>
+				<th>override</th>
+				<th>DONE</th>
 			</tr>
 			<tr>
 				<!-- [i] -->
@@ -612,12 +612,15 @@ document.body.innerHTML = `
 				<th>updated days ago</th>
 				<th>updated hours ago</th>
 				<!-- Dependabot YAML -->
+				<th></th>
 				<!-- tasks -->
 				<th>code-scanning</th>
 				<th>dependabot</th>
 				<th>secret-scanning</th>
 				<!-- override -->
+				<th></th>
 				<!-- DONE -->
+				<th></th>
 			</tr>
 		</thead>
 		<tbody>
@@ -781,7 +784,7 @@ document.body.innerHTML = `
 `;
 
 // make the columns sortable
-document.querySelectorAll("table thead tr th").forEach(th => th.addEventListener("click", sort));
+document.querySelectorAll("table thead tr:nth-child(2) th").forEach(th => th.addEventListener("click", sort));
 
 // ugly hack to calculate - based on the cell's color green - if a repo is done or not
 var expected_green = 11; // issue close, pull request closed, GHAS setup, YAML setup, 3 tasks done, etc.
