@@ -8,6 +8,9 @@ HOW TO USE:
 - execute the script in the JavaScript console
 
 PENDING:
+- repo has branch protection? yes/no
+- repo has automatic security fixes, automated PR? yes/no
+- change override from column to each individual cell
 - ensure cross-reference between Issue and PR
 - last column DONE: await prior code before rendering
 - add comments on hover
@@ -17,9 +20,8 @@ PENDING:
 - what's the API to get the 160 count of seats ? un-hardcode value
 - what's the API to get the list of 51 repos that have GHAS setup ? un-hardcode the repos.js list
 - what other build systems?
-- repo has branch protection? yes/no
 - repo has break builds? yes/no
-- repo has automatic security fixes, automated PR? yes/no
+- Circle CI also file circle.yml ?
 */
 
 
@@ -152,25 +154,55 @@ async function get_code_scanning_alerts(owner, repo) {
 // list Dependabot alerts
 // https://docs.github.com/en/graphql/reference/objects#repositoryvulnerabilityalert
 async function get_dependabot_alerts(owner, repo) {
-	var query = `{
-		repository(name: "${repo}", owner: "${owner}") {
-			isPrivate
-			vulnerabilityAlerts(first: 100) {
-				nodes {
-					createdAt
-					dismissedAt
-					securityVulnerability {
-						package {
-							name
-						}
-						advisory {
-							description
-						}
-					}
-				}
-			}
+	// test in https://docs.github.com/en/graphql/overview/explorer
+	var query = `
+		{
+		  repository(owner: "${owner}", name: "${repo}") {
+		    isPrivate
+		    vulnerabilityAlerts(first: 100) {
+		      nodes {
+		        createdAt
+		        dismissReason
+		        dismissedAt
+		        dismisser {
+		          login
+		          name
+		        }
+		        id
+		        securityAdvisory {
+		          cvss {
+		            score
+		            vectorString
+		          }
+		          cwes {
+		            nodes {
+		              cweId
+		              description
+		              id
+		              name
+		            }
+		          }
+		          severity
+		          summary
+		        }
+		        securityVulnerability {
+		          severity
+		          package {
+		            name
+		          }
+		          advisory {
+		            description
+		            severity
+		          }
+		        }
+		        vulnerableManifestFilename
+		        vulnerableManifestPath
+		        vulnerableRequirements
+		      }
+		    }
+		  }
 		}
-	}`;
+	`;
 	return await GraphQL(query);
 }
 
