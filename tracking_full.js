@@ -8,6 +8,9 @@ HOW TO USE:
 - execute the script in the JavaScript console
 
 PENDING:
+- column "default_branch": footer: show unique values
+- prevent XSS
+- paginate results, e.g. search_issues
 - repo has branch protection? yes/no
 - repo has automatic security fixes, automated PR? yes/no
 - change override from column to each individual cell
@@ -462,8 +465,11 @@ var issues_ = issues.items.filter(o => repos.find(repo => o.repository_url.endsW
 var pull_requests = await get_CodeQL_pull_requests(owner);
 var pull_requests_ = pull_requests.items.filter(o => repos.find(repo => o.repository_url.endsWith(repo)));
 
+// team admins
+result.forEach(o => o.admins = o.teams.filter(team => team.permissions.admin === true));
+var unique_teams = [...new Set(result.flatMap(o => o./*teams*/admins.map(team => team.name)))].sort();
+
 // repo stats
-var unique_teams = [...new Set(result.flatMap(o => o.teams.map(team => team.name)))].sort();
 var contributors_90_days = [...new Set(result.flatMap(o => get_contributors_90_days(o.contributors)).map(contributor => contributor.author.login))].sort(); // PENDING: case insensitive sort
 
 // language stats
@@ -605,7 +611,7 @@ document.body.innerHTML = `
 				<th>name</th>
 				<th>is public</th>
 				<th>default_branch</th>
-				<th>teams</th>
+				<th>admins</th>
 				<th>languages</th>
 				<th>contributors in the last 90 days</th>
 				<!-- build -->
@@ -691,7 +697,7 @@ document.body.innerHTML = `
 						<td><a href="https://github.com/${owner}/${o.repo}">${o.repo}</a></td>
 						<td>${o.repository.private ? "" : "✓"}</td>
 						<td>${o.repository.default_branch}</td>
-						<td>${o.teams.map(team => get_team_link(team.name)).join(", ")}</td>
+						<td>${o./*teams*/admins.map(team => get_team_link(team.name)).join(", ")}</td>
 						<td title="${escape_attr(JSON.stringify(o.languages))}">${cloud_map(o.languages)}</td>
 						<td title="${contributors_90_days}">${contributors_90_days.length}</td>
 						<!-- build -->
@@ -749,7 +755,7 @@ document.body.innerHTML = `
 				<!-- repository -->
 				<th rowspan="2">${result.length} repos</th>
 				<th rowspan="2">${result.filter(o => o.repository.private === false).length} repos public</th>
-				<th rowspan="2"></th>
+				<th rowspan="2">${[...new Set(result.map(o => o.repository.default_branch))].sort().join(", ")}</th>
 				<th rowspan="2">${unique_teams.length} unique teams<br/>${unique_teams.map(team => get_team_link(team)).join(", ")}</th>
 				<th rowspan="2" title="${escape_attr(JSON.stringify(languages_total))}">${unique_languages.length} languages<br/><span style="font-size:2em">${cloud_map(languages_total)}</span></th>
 				<th rowspan="2" title="${contributors_90_days}">${contributors_90_days.length} unique contributors out of 160 seats</th>
