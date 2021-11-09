@@ -10,7 +10,7 @@ HOW TO USE:
 PENDING:
 - column "default_branch": footer: show unique values
 - prevent XSS
-- paginate results, e.g. search_issues
+- paginate results, e.g. Dependabot alerts
 - repo has branch protection? yes/no
 - repo has automatic security fixes, automated PR? yes/no
 - change override from column to each individual cell
@@ -89,6 +89,20 @@ async function REST(method, url, body) {
 	return await fetch_(method, url, body);
 }
 
+// sugar for pagination
+async function paginate(method, url) {
+	var delimiter = (url.includes("?") ? "&": "?");
+	var page = 1;
+	var data = [];
+	do {
+		var _url = `${url}${delimiter}per_page=100&page=${page}`;
+		var response = await REST(method, _url);
+		data.push(...response.items);
+		page++;
+	} while (data.length < response.total_count);
+	return data;
+}
+
 
 /*
 	GitHub API
@@ -115,8 +129,9 @@ async function get_languages(owner, repo) {
 // Search issues and pull requests
 // https://docs.github.com/en/rest/reference/search#search-issues-and-pull-requests
 async function search_issues(owner, q) {
-	return await REST("GET", `/search/issues?q=${encodeURIComponent(q)}&per_page=100`);
+	return await paginate("GET", `/search/issues?q=${encodeURIComponent(q)}`);
 }
+
 
 // Get allowed actions for a repository
 // https://docs.github.com/en/rest/reference/actions#get-allowed-actions-for-a-repository
@@ -161,48 +176,48 @@ async function get_dependabot_alerts(owner, repo) {
 	var query = `
 		{
 		  repository(owner: "${owner}", name: "${repo}") {
-		    isPrivate
-		    vulnerabilityAlerts(first: 100) {
-		      nodes {
-		        createdAt
-		        dismissReason
-		        dismissedAt
-		        dismisser {
-		          login
-		          name
-		        }
-		        id
-		        securityAdvisory {
-		          cvss {
-		            score
-		            vectorString
-		          }
-		          cwes {
-		            nodes {
-		              cweId
-		              description
-		              id
-		              name
-		            }
-		          }
-		          severity
-		          summary
-		        }
-		        securityVulnerability {
-		          severity
-		          package {
-		            name
-		          }
-		          advisory {
-		            description
-		            severity
-		          }
-		        }
-		        vulnerableManifestFilename
-		        vulnerableManifestPath
-		        vulnerableRequirements
-		      }
-		    }
+			isPrivate
+			vulnerabilityAlerts(first: 100) {
+			  nodes {
+				createdAt
+				dismissReason
+				dismissedAt
+				dismisser {
+				  login
+				  name
+				}
+				id
+				securityAdvisory {
+				  cvss {
+					score
+					vectorString
+				  }
+				  cwes {
+					nodes {
+					  cweId
+					  description
+					  id
+					  name
+					}
+				  }
+				  severity
+				  summary
+				}
+				securityVulnerability {
+				  severity
+				  package {
+					name
+				  }
+				  advisory {
+					description
+					severity
+				  }
+				}
+				vulnerableManifestFilename
+				vulnerableManifestPath
+				vulnerableRequirements
+			  }
+			}
 		  }
 		}
 	`;
@@ -461,9 +476,9 @@ var promises = repos.map(async (repo) => ({
 }));
 var result = await Promise.all(promises);
 var issues = await get_GHAS_issues(owner);
-var issues_ = issues.items.filter(o => repos.find(repo => o.repository_url.endsWith(repo)));
+var issues_ = issues.filter(o => repos.find(repo => o.repository_url.endsWith(repo)));
 var pull_requests = await get_CodeQL_pull_requests(owner);
-var pull_requests_ = pull_requests.items.filter(o => repos.find(repo => o.repository_url.endsWith(repo)));
+var pull_requests_ = pull_requests.filter(o => repos.find(repo => o.repository_url.endsWith(repo)));
 
 // team admins
 result.forEach(o => o.admins = o.teams.filter(team => team.permissions.admin === true));
@@ -766,7 +781,7 @@ document.body.innerHTML = `
 				<th rowspan="2">${count_makefile} Makefiles</th>
 				<th rowspan="2">${count_cmakelists} CMakeLists</th>
 				<!-- issue -->
-				<th rowspan="2">${result.filter(o => issues.items.find(p => p.repository_url.endsWith(o.repo))).length} issues</th>
+				<th rowspan="2">${result.filter(o => issues.find(p => p.repository_url.endsWith(o.repo))).length} issues</th>
 				<th rowspan="2">${[...new Set(issues_.map(issue => issue.state))].map(state => [issues_.filter(issue => issue.state === state).length, state].join(" ")).join("<br/>")}</th>
 				<th rowspan="2"></th>
 				<th rowspan="2"></th>
