@@ -8,9 +8,11 @@ HOW TO USE:
 - execute the script in the JavaScript console
 
 PENDING:
+- ensure CodeQL YAML branch is same as repo branch
+- add a rate limit
 - column "default_branch": footer: show unique values
 - prevent XSS
-- paginate results, e.g. Dependabot alerts
+- paginate results, e.g. Dependabot alerts, contributors
 - repo has branch protection? yes/no
 - repo has automatic security fixes, automated PR? yes/no
 - change override from column to each individual cell
@@ -21,8 +23,8 @@ PENDING:
 	/stats/contributors response is not array
 	result.filter(o => !Array.isArray(o.contributors))
 - what's the API to get the 160 count of seats ? un-hardcode value
-- what's the API to get the list of 51 repos that have GHAS setup ? un-hardcode the repos.js list
-- what other build systems?
+- what's the API to get the list of 51 repos that have GHAS setup ? un-hardcode the repos.js list, compare to https://github.com/organizations/{owner}/settings/actions
+- what other build systems? Gradle? fastlane? Bitrise?
 - repo has break builds? yes/no
 - Circle CI also file circle.yml ?
 */
@@ -61,6 +63,11 @@ var codeql_supports = ["cpp", "csharp", "go", "java", "javascript", "python"];
 	syntactic sugar
 */
 
+// delay specified duration
+async function delay(ms) {
+	await new Promise((resolve, reject) => window.setTimeout(resolve, ms));
+}
+
 // sugar for fetch
 async function fetch_(method, url, body) {
 	var response = (await fetch(url, { method: method, headers: { Authorization: `bearer ${TOKEN}` }, body: body }));
@@ -69,11 +76,20 @@ async function fetch_(method, url, body) {
 	if ((url.startsWith("/search/issues?") && x_ratelimit_remaining === 0) || (!url.startsWith("/search/issues?") && x_ratelimit_remaining < 1000)) {
 		throw `x-ratelimit-remaining: ${x_ratelimit_remaining}`;
 	}
+	// PENDING: use an actual rate limited queue
+	await delay(100);
 	// data
 	var data = (await response.json());
 	// error message?
-	if (data.message === "Resource protected by organization SAML enforcement. Your token's access was revoked. Please generate a new Personal Access token and grant it access to this organization." || data.message === "API rate limit exceeded for user ID 6137886.") {
+	if (
+		data.message === "Resource protected by organization SAML enforcement. Your token's access was revoked. Please generate a new Personal Access token and grant it access to this organization."
+		|| data.message === "Resource protected by organization SAML enforcement. You must grant your Personal Access token access to this organization."
+		|| data.message === "You have exceeded a secondary rate limit. Please wait a few minutes before you try again."
+		|| data.message === "API rate limit exceeded for user ID 6137886."
+	) {
 		throw data.message;
+	} else if (response.status === 403) {
+		throw `${url} HTTP response ${response.status}`;
 	}
 	// OK
 	return data;
@@ -149,12 +165,25 @@ async function get_content(owner, repo, path) {
 // https://docs.github.com/en/rest/reference/repos#get-all-contributor-commit-activity
 async function get_contributors(owner, repo) {
 	var url = `/repos/${owner}/${repo}/stats/contributors`;
-	var response = await REST("GET", url);
-	// PENDING
-	if (!Array.isArray(response)) {
-		throw `${url} response is not array`;
+	// PENDING, re-try up to 3 times if this API fails
+	var response;
+	var i = 1;
+	var n = 3;
+	for (; i <= n; i++) {
+		response = await REST("GET", url);
+		if (!Array.isArray(response)) {
+			// fail
+			console.error(`${url} response is not array, attempt ${i} of ${n}`);
+		} else {
+			// success
+			break;
+		}
 	}
-	return response;
+	if (i === (n + 1)) {
+		throw `${url} response is still not array, even after ${n} attempts`;
+	} else {
+		return response;
+	}
 }
 
 // List repository workflows
@@ -297,6 +326,7 @@ async function get_CodeQL_pull_requests(owner) {
 }
 
 // filter contributor commit activity of the last 90 days
+// https://docs.github.com/en/billing/managing-billing-for-github-advanced-security/about-billing-for-github-advanced-security
 function get_contributors_90_days(contributors) {
 	// calculate from/to weeks; convert from JavaScript Date ms to UTC epoch seconds
 	var from = Math.round((Date.now() - 90*24*3600*1000) / 1000); // 90 days ago
@@ -452,7 +482,7 @@ function get_team_link(team) {
 document.head.innerHTML = "";
 document.body.innerHTML = "";
 
-// get all the data, loop repos
+// get all the data, loop repos // n * 17 requests + paginate + re-tries
 var timestamp = new Date().toISOString();
 var promises = repos.map(async (repo) => ({
 	repo: repo,
@@ -484,8 +514,8 @@ var pull_requests_ = pull_requests.filter(o => repos.find(repo => o.repository_u
 result.forEach(o => o.admins = o.teams.filter(team => team.permissions.admin === true));
 var unique_teams = [...new Set(result.flatMap(o => o./*teams*/admins.map(team => team.name)))].sort();
 
-// repo stats
-var contributors_90_days = [...new Set(result.flatMap(o => get_contributors_90_days(o.contributors)).map(contributor => contributor.author.login))].sort(); // PENDING: case insensitive sort
+// count of contributors of private repos
+var contributors_90_days = [...new Set(result.filter(o => o.repository.private === true).flatMap(o => get_contributors_90_days(o.contributors)).map(contributor => contributor.author.login))].sort(); // PENDING: case insensitive sort
 
 // language stats
 var unique_languages = [...new Set(result.flatMap(o => Object.keys(o.languages)))].sort();
@@ -710,7 +740,7 @@ document.body.innerHTML = `
 						<td>${i}</td>
 						<!-- repository -->
 						<td><a href="https://github.com/${owner}/${o.repo}">${o.repo}</a></td>
-						<td>${o.repository.private ? "" : "✓"}</td>
+						<td>${o.repository.private === true ? "" : "✓"}</td>
 						<td>${o.repository.default_branch}</td>
 						<td>${o./*teams*/admins.map(team => get_team_link(team.name)).join(", ")}</td>
 						<td title="${escape_attr(JSON.stringify(o.languages))}">${cloud_map(o.languages)}</td>
@@ -773,7 +803,7 @@ document.body.innerHTML = `
 				<th rowspan="2">${[...new Set(result.map(o => o.repository.default_branch))].sort().join(", ")}</th>
 				<th rowspan="2">${unique_teams.length} unique teams<br/>${unique_teams.map(team => get_team_link(team)).join(", ")}</th>
 				<th rowspan="2" title="${escape_attr(JSON.stringify(languages_total))}">${unique_languages.length} languages<br/><span style="font-size:2em">${cloud_map(languages_total)}</span></th>
-				<th rowspan="2" title="${contributors_90_days}">${contributors_90_days.length} unique contributors out of 160 seats</th>
+				<th rowspan="2" title="${contributors_90_days}">${contributors_90_days.length} unique contributors in private repos, out of 160 seats</th>
 				<!-- build -->
 				<th rowspan="2">${count_travis} Travis CI</th>
 				<th rowspan="2">${count_circleci} Circle CI</th>
