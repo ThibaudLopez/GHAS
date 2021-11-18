@@ -14,7 +14,7 @@ PENDING:
 - prevent XSS
 - paginate results, e.g. Dependabot alerts, contributors
 - repo has branch protection? yes/no
-- repo has automatic security fixes, automated PR? yes/no
+- repo has automatic security fixes, automated PR? yes/no, missing method GET, https://docs.github.com/en/rest/reference/repos#enable-automated-security-fixes
 - change override from column to each individual cell
 - ensure cross-reference between Issue and PR
 - last column DONE: await prior code before rendering
@@ -70,11 +70,22 @@ async function delay(ms) {
 
 // sugar for fetch
 async function fetch_(method, url, body) {
-	var response = (await fetch(url, { method: method, headers: { Authorization: `bearer ${TOKEN}` }, body: body }));
+	var response;
+	do {
+		response = (await fetch(url, { method: method, headers: { Authorization: `bearer ${TOKEN}` }, body: body }));
+		// retry-after seconds // PENDING: use a semaphore
+		var retry_after = Number.parseInt(response.headers.get("retry-after"));
+		if (!Number.isNaN(retry_after)) {
+			console.error(`${url} retry-after ${retry_after}s`);
+			await delay(retry_after * 1000);
+		}
+	} while (response.headers.get("retry-after") !== null);
 	// rate limit?
-	var x_ratelimit_remaining = response.headers.get("x-ratelimit-remaining");
-	if ((url.startsWith("/search/issues?") && x_ratelimit_remaining === 0) || (!url.startsWith("/search/issues?") && x_ratelimit_remaining < 1000)) {
-		throw `x-ratelimit-remaining: ${x_ratelimit_remaining}`;
+	var x_ratelimit_remaining = Number.parseInt(response.headers.get("x-ratelimit-remaining"));
+	if (!Number.isNaN(x_ratelimit_remaining)) {
+		if ((url.startsWith("/search/issues?") && x_ratelimit_remaining < 3 /*limit:30*/) || (!url.startsWith("/search/issues?") && x_ratelimit_remaining < 500 /*limit:5000*/)) {
+			throw `x-ratelimit-remaining: ${x_ratelimit_remaining}`;
+		}
 	}
 	// PENDING: use an actual rate limited queue
 	await delay(100);
@@ -144,7 +155,7 @@ async function get_languages(owner, repo) {
 
 // Search issues and pull requests
 // https://docs.github.com/en/rest/reference/search#search-issues-and-pull-requests
-async function search_issues(owner, q) {
+async function search_issues(q) {
 	return await paginate("GET", `/search/issues?q=${encodeURIComponent(q)}`);
 }
 
@@ -221,7 +232,7 @@ async function get_dependabot_alerts(owner, repo) {
 					score
 					vectorString
 				  }
-				  cwes {
+				  cwes(first:100) {
 					nodes {
 					  cweId
 					  description
@@ -317,12 +328,12 @@ async function get_cmakelists(owner, repo) {
 
 // return the GHAS tracking issues
 async function get_GHAS_issues(owner) {
-	return await search_issues(owner, `org:${owner} is:issue label:GHAS`);
+	return await search_issues(`org:${owner} is:issue label:GHAS`);
 }
 
 // return the CodeQL pull request
 async function get_CodeQL_pull_requests(owner) {
-	return await search_issues(owner, `org:${owner} is:pr in:title "Create codeql-analysis.yml"`);
+	return await search_issues(`org:${owner} is:pr in:title "Create codeql-analysis.yml"`);
 }
 
 // filter contributor commit activity of the last 90 days
@@ -512,10 +523,10 @@ var pull_requests_ = pull_requests.filter(o => repos.find(repo => o.repository_u
 
 // team admins
 result.forEach(o => o.admins = o.teams.filter(team => team.permissions.admin === true));
-var unique_teams = [...new Set(result.flatMap(o => o./*teams*/admins.map(team => team.name)))].sort();
+var unique_teams = [...new Set(result.flatMap(o => o./*teams*/admins.map(team => team.name)))].sort((a, b) => a.localeCompare(b));
 
 // count of contributors of private repos
-var contributors_90_days = [...new Set(result.filter(o => o.repository.private === true).flatMap(o => get_contributors_90_days(o.contributors)).map(contributor => contributor.author.login))].sort(); // PENDING: case insensitive sort
+var contributors_90_days = [...new Set(result.filter(o => o.repository.private === true).flatMap(o => get_contributors_90_days(o.contributors)).map(contributor => contributor.author.login))].sort((a, b) => a.localeCompare(b));
 
 // language stats
 var unique_languages = [...new Set(result.flatMap(o => Object.keys(o.languages)))].sort();
@@ -733,7 +744,7 @@ document.body.innerHTML = `
 					var pull_request_updated_ago = (Date.now() - new Date(pull_request.updated_at));
 				}
 				// contributors
-				var contributors_90_days = get_contributors_90_days(o.contributors).map(contributor => contributor.author.login).sort(); // PENDING: case insensitive sort
+				var contributors_90_days = get_contributors_90_days(o.contributors).map(contributor => contributor.author.login).sort((a, b) => a.localeCompare(b));
 				// HTML row
 				return `
 					<tr>
